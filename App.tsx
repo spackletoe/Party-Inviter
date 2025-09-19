@@ -5,9 +5,13 @@ import useLocalStorage from './hooks/useLocalStorage';
 import CreateEvent from './components/CreateEvent';
 import EditEvent from './components/EditEvent';
 import ProtectedEventView from './components/ProtectedEventView';
+import AccessGate from './components/AccessGate';
+import ProtectedAdminRoute, { setAdminAuthorized } from './components/ProtectedAdminRoute';
+import AdminDashboard from './components/AdminDashboard';
 
 const App: React.FC = () => {
   const [events, setEvents] = useLocalStorage<Event[]>('party-events', []);
+  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
 
   const addEvent = (event: Event) => {
     setEvents(prevEvents => [...prevEvents, event]);
@@ -54,7 +58,32 @@ const App: React.FC = () => {
         </header>
         <main className="flex-grow">
           <Routes>
-            <Route path="/" element={<CreateEvent events={events} addEvent={addEvent} deleteEvent={deleteEvent} />} />
+            <Route
+              path="/"
+              element={
+                <AccessGate
+                  events={events}
+                  adminPassword={adminPassword}
+                  onAdminAuthorized={setAdminAuthorized}
+                />
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminDashboard events={events} />
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <ProtectedAdminRoute>
+                  <CreateEvent events={events} addEvent={addEvent} deleteEvent={deleteEvent} />
+                </ProtectedAdminRoute>
+              }
+            />
             <Route path="/event/:eventId" element={<ProtectedEventView events={events} addRsvp={addRsvp} />} />
             <Route path="/event/:eventId/edit" element={<EditEvent events={events} editEvent={editEvent} />} />
           </Routes>

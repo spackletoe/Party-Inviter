@@ -15,8 +15,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/19mi9HO88ttJri_mR9qvzq2
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. (Optional) Set the admin password by defining `VITE_ADMIN_PASSWORD` in [.env.local](.env.local). The default value is `admin123`.
+3. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+4. Run the app:
    `npm run dev`
 
 ## Run with Docker
