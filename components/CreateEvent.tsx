@@ -34,6 +34,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ events, addEvent, deleteEvent
   const [message, setMessage] = useState('');
   const [showGuestList, setShowGuestList] = useState(true);
   const [password, setPassword] = useState('');
+  const [allowShareLink, setAllowShareLink] = useState(true);
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_EVENT_THEME.primary);
   const [secondaryColor, setSecondaryColor] = useState(DEFAULT_EVENT_THEME.secondary);
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_EVENT_THEME.background);
@@ -65,6 +66,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ events, addEvent, deleteEvent
     }
 
     const eventId = generateEventId();
+    const shareToken = generateEventId();
     const newEvent: Event = {
       id: eventId,
       title,
@@ -76,6 +78,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ events, addEvent, deleteEvent
       showGuestList,
       guests: [],
       password: password ? password : undefined,
+      allowShareLink,
       theme: {
         primary: primaryColor,
         secondary: secondaryColor,
@@ -84,6 +87,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ events, addEvent, deleteEvent
       },
       backgroundImage: backgroundImage || undefined,
       heroImages: heroImages.length > 0 ? heroImages : undefined,
+      shareToken,
     };
 
     addEvent(newEvent);
@@ -310,14 +314,26 @@ const CreateEvent: React.FC<CreateEventProps> = ({ events, addEvent, deleteEvent
                 <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter a password" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
               </div>
 
-              <div className="flex items-center justify-between">
-                <label htmlFor="showGuestList" className="text-sm font-semibold text-slate-700 flex flex-col">
-                  Show Guest List
-                  <span className="font-normal text-xs text-slate-500">If unchecked, only the number of guests will be shown.</span>
-                </label>
-                <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                  <input type="checkbox" id="showGuestList" checked={showGuestList} onChange={(e) => setShowGuestList(e.target.checked)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                  <label htmlFor="showGuestList" className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="showGuestList" className="text-sm font-semibold text-slate-700 flex flex-col">
+                    Show Guest List
+                    <span className="font-normal text-xs text-slate-500">If unchecked, only the number of guests will be shown.</span>
+                  </label>
+                  <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" id="showGuestList" checked={showGuestList} onChange={(e) => setShowGuestList(e.target.checked)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                    <label htmlFor="showGuestList" className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="allowShareLink" className="text-sm font-semibold text-slate-700 flex flex-col">
+                    Allow Shareable Link Button
+                    <span className="font-normal text-xs text-slate-500">Let guests copy a link that bypasses the password gate.</span>
+                  </label>
+                  <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" id="allowShareLink" checked={allowShareLink} onChange={(e) => setAllowShareLink(e.target.checked)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                    <label htmlFor="allowShareLink" className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
+                  </div>
                 </div>
               </div>
             </div>

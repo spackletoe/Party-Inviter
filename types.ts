@@ -5,6 +5,7 @@ export interface Guest {
   comment: string;
   email?: string;
   status: 'attending' | 'not-attending';
+  respondedAt?: string;
 }
 
 export interface EventTheme {
@@ -35,4 +36,6 @@ export interface Event {
   theme?: EventTheme;
   backgroundImage?: string;
   heroImages?: string[];
+  allowShareLink?: boolean;
+  shareToken?: string;
 }

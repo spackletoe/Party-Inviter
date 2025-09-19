@@ -1,7 +1,16 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Event } from '../types';
-import { CalendarIcon, LockClosedIcon, PencilIcon, PlusIcon, ArrowRightIcon, UsersIcon } from './icons';
+import {
+  CalendarIcon,
+  LockClosedIcon,
+  PencilIcon,
+  PlusIcon,
+  ArrowRightIcon,
+  UsersIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from './icons';
 
 interface AdminDashboardProps {
   events: Event[];
@@ -51,6 +60,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
     past.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return { upcomingEvents: upcoming, pastEvents: past };
+  }, [events]);
+
+  const recentResponses = useMemo(() => {
+    return events
+      .flatMap(event =>
+        event.guests.map(guest => ({
+          eventId: event.id,
+          eventTitle: event.title,
+          guest,
+          respondedAt: guest.respondedAt ? new Date(guest.respondedAt).getTime() : 0,
+        }))
+      )
+      .sort((a, b) => b.respondedAt - a.respondedAt)
+      .slice(0, 6);
   }, [events]);
 
   const renderEventCard = (event: Event) => {
@@ -122,6 +145,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
             <PlusIcon className="h-5 w-5" /> Create a New Event
           </Link>
         </div>
+      </section>
+
+      <section>
+        <header className="flex items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Recent RSVPs & Comments</h2>
+            <p className="text-sm text-slate-500">See the latest responses across all of your events.</p>
+          </div>
+          <span className="text-sm text-slate-500">{recentResponses.length} recent</span>
+        </header>
+        {recentResponses.length > 0 ? (
+          <ul className="grid gap-4 md:grid-cols-2">
+            {recentResponses.map(({ guest, eventTitle, eventId, respondedAt }) => {
+              const respondedAtDate = respondedAt ? new Date(respondedAt) : null;
+              const formattedTimestamp = respondedAtDate
+                ? respondedAtDate.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+                : 'Time unavailable';
+              const isAttending = guest.status === 'attending';
+
+              return (
+                <li key={`${guest.id}-${eventId}`} className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-5 border border-slate-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {isAttending ? (
+                        <CheckCircleIcon className="h-6 w-6 text-green-500" />
+                      ) : (
+                        <XCircleIcon className="h-6 w-6 text-slate-400" />
+                      )}
+                      <div>
+                        <p className="text-base font-semibold text-slate-800">{guest.name}</p>
+                        <p className="text-sm text-slate-500">Responded for {eventTitle}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium text-slate-400">{formattedTimestamp}</span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3 text-sm text-slate-600">
+                    <UsersIcon className="h-4 w-4 text-primary" />
+                    <span>
+                      {isAttending ? 'Attending' : 'Not Attending'}
+                      {guest.plusOnes > 0 && ` • +${guest.plusOnes}`}
+                    </span>
+                  </div>
+                  {guest.comment && (
+                    <p className="mt-3 text-sm italic text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      “{guest.comment}”
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
+            <p>No RSVPs yet. Once guests respond you'll see them here.</p>
+          </div>
+        )}
       </section>
 
       <section>

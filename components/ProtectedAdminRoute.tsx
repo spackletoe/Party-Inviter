@@ -7,15 +7,17 @@ interface ProtectedAdminRouteProps {
 
 const ADMIN_SESSION_KEY = 'admin-auth';
 
+export const isAdminAuthorized = () => {
+  try {
+    return typeof window !== 'undefined' && window.sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+  } catch (error) {
+    console.error('Unable to read admin session state:', error);
+    return false;
+  }
+};
+
 const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({ children }) => {
-  const isAuthorized = useMemo(() => {
-    try {
-      return typeof window !== 'undefined' && window.sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
-    } catch (error) {
-      console.error('Unable to read admin session state:', error);
-      return false;
-    }
-  }, []);
+  const isAuthorized = useMemo(isAdminAuthorized, []);
 
   if (!isAuthorized) {
     return <Navigate to="/" replace />;

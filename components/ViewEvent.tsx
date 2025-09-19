@@ -14,6 +14,7 @@ import {
   PencilIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DirectionsIcon,
 } from './icons';
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -44,9 +45,14 @@ const hexToRgba = (hex: string, alpha: number) => {
 interface ViewEventProps {
   events: Event[];
   addRsvp: (eventId: string, guest: Guest) => void;
+  isAdmin: boolean;
 }
 
-const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
+const ADDRESS_PATTERN = /\b(street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|boulevard|blvd\.?|lane|ln\.?|way|trail|court|ct\.?|circle|cir\.?|place|pl\.?)\b/i;
+
+const isLikelyAddress = (location: string) => /\d/.test(location) || ADDRESS_PATTERN.test(location);
+
+const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp, isAdmin }) => {
   const { eventId } = useParams<{ eventId: string }>();
   const [name, setName] = useState('');
   const [plusOnes, setPlusOnes] = useState(0);
@@ -126,6 +132,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
         comment,
         email: rsvpChoice === 'yes' && email ? email : undefined,
         status: rsvpChoice === 'yes' ? 'attending' : 'not-attending',
+        respondedAt: new Date().toISOString(),
       };
       addRsvp(event.id, newGuest);
       setSubmitted(true);
@@ -133,11 +140,19 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   };
 
   const handleCopyLink = async () => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || !event) {
       return;
     }
 
-    const shareUrl = window.location.href;
+    const url = new URL(window.location.href);
+    const hash = url.hash || '';
+    const [hashPath, existingQuery = ''] = hash.split('?');
+    const params = new URLSearchParams(existingQuery);
+    const shareToken = event.shareToken ?? event.id;
+    params.set('guest', shareToken);
+    url.hash = `${hashPath}?${params.toString()}`;
+    url.search = '';
+    const shareUrl = url.toString();
 
     try {
       if (navigator.clipboard?.writeText) {
@@ -193,6 +208,11 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   const formattedEndDate = event.endDate ? formatDateTime(event.endDate) : null;
   const sameDay = event.endDate && new Date(event.date).toDateString() === new Date(event.endDate).toDateString();
   const showHeroControls = heroImages.length > 1;
+  const showEditButton = isAdmin;
+  const showShareButton = isAdmin || event.allowShareLink !== false;
+  const hasActionButtons = showEditButton || showShareButton;
+  const hasAddress = isLikelyAddress(event.location);
+  const directionsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
 
   const handlePreviousSlide = () => {
     setCurrentSlide(prev => (prev === 0 ? heroImages.length - 1 : prev - 1));
@@ -298,9 +318,22 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
                   </div>
                   <div className="flex items-start">
                     <LocationIcon className="h-6 w-6 mr-4 mt-1 flex-shrink-0" style={{ color: theme.primary }} />
-                    <span className="text-lg" style={{ color: mutedTextColor }}>
-                      {event.location}
-                    </span>
+                    <div className="text-lg flex items-center gap-2 flex-wrap" style={{ color: mutedTextColor }}>
+                      <span>{event.location}</span>
+                      {hasAddress && (
+                        <a
+                          href={directionsLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-full p-1.5 transition hover:bg-slate-200/60"
+                          style={{ color: theme.primary }}
+                          aria-label="Open directions in Google Maps"
+                          title="Open in Google Maps"
+                        >
+                          <DirectionsIcon className="h-5 w-5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -311,30 +344,36 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
                     </div>
                   </div>
                 )}
-                <div className="mt-8 border-t pt-6 flex flex-col sm:flex-row gap-4" style={{ borderColor: dividerColor }}>
-                  <Link
-                    to={`/event/${event.id}/edit`}
-                    className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-                    style={{ backgroundColor: theme.primary, color: '#fff' }}
-                  >
-                    <PencilIcon className="h-5 w-5" /> Edit Event
-                  </Link>
-                  <button
-                    onClick={handleCopyLink}
-                    className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-                    style={{ backgroundColor: softPrimary, color: theme.text }}
-                  >
-                    {linkCopied ? (
-                      <>
-                        <CheckCircleIcon className="h-5 w-5" style={{ color: theme.primary }} /> Link Copied!
-                      </>
-                    ) : (
-                      <>
-                        <ClipboardIcon className="h-5 w-5" /> Copy Shareable Link
-                      </>
+                {hasActionButtons && (
+                  <div className="mt-8 border-t pt-6 flex flex-col sm:flex-row gap-4" style={{ borderColor: dividerColor }}>
+                    {showEditButton && (
+                      <Link
+                        to={`/event/${event.id}/edit`}
+                        className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+                        style={{ backgroundColor: theme.primary, color: '#fff' }}
+                      >
+                        <PencilIcon className="h-5 w-5" /> Edit Event
+                      </Link>
                     )}
-                  </button>
-                </div>
+                    {showShareButton && (
+                      <button
+                        onClick={handleCopyLink}
+                        className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+                        style={{ backgroundColor: softPrimary, color: theme.text }}
+                      >
+                        {linkCopied ? (
+                          <>
+                            <CheckCircleIcon className="h-5 w-5" style={{ color: theme.primary }} /> Link Copied!
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardIcon className="h-5 w-5" /> Copy Shareable Link
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

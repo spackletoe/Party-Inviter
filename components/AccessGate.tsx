@@ -33,6 +33,13 @@ const AccessGate: React.FC<AccessGateProps> = ({ events, adminPassword, onAdminA
     const matchingEvent = events.find(evt => evt.password && evt.password === trimmedPassword);
     if (matchingEvent) {
       setError('');
+      try {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem(`event-auth-${matchingEvent.id}`, 'true');
+        }
+      } catch (storageError) {
+        console.error('Unable to persist event session state:', storageError);
+      }
       navigate(`/event/${matchingEvent.id}`);
       return;
     }
