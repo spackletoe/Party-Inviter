@@ -34,7 +34,6 @@ const App: React.FC = () => {
       );
     }
   }, [events, setEvents]);
-
   const addEvent = (event: Event) => {
     setEvents(prevEvents => [...prevEvents, event]);
   };
