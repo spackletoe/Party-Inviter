@@ -3,14 +3,56 @@ import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Event, Guest } from '../types';
-import { CalendarIcon, LocationIcon, UserIcon, UsersIcon, ClipboardIcon, CheckCircleIcon, PencilIcon } from './icons';
+import { DEFAULT_EVENT_THEME } from '../types';
+import {
+  CalendarIcon,
+  LocationIcon,
+  UserIcon,
+  UsersIcon,
+  ClipboardIcon,
+  CheckCircleIcon,
+  PencilIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DirectionsIcon,
+} from './icons';
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '');
+  const expanded = normalized.length === 3
+    ? normalized
+        .split('')
+        .map(char => `${char}${char}`)
+        .join('')
+    : normalized;
+
+  if (expanded.length !== 6) {
+    return `rgba(71, 85, 105, ${alpha})`;
+  }
+
+  const numeric = Number.parseInt(expanded, 16);
+  if (Number.isNaN(numeric)) {
+    return `rgba(71, 85, 105, ${alpha})`;
+  }
+
+  const r = (numeric >> 16) & 255;
+  const g = (numeric >> 8) & 255;
+  const b = numeric & 255;
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 interface ViewEventProps {
   events: Event[];
   addRsvp: (eventId: string, guest: Guest) => void;
+  isAdmin: boolean;
 }
 
-const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
+const ADDRESS_PATTERN = /\b(street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|boulevard|blvd\.?|lane|ln\.?|way|trail|court|ct\.?|circle|cir\.?|place|pl\.?)\b/i;
+
+const isLikelyAddress = (location: string) => /\d/.test(location) || ADDRESS_PATTERN.test(location);
+
+const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp, isAdmin }) => {
   const { eventId } = useParams<{ eventId: string }>();
   const [name, setName] = useState('');
   const [plusOnes, setPlusOnes] = useState(0);
@@ -19,6 +61,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   const [submitted, setSubmitted] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [rsvpChoice, setRsvpChoice] = useState<'yes' | 'no' | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const copyTimeoutRef = useRef<number | null>(null);
 
   const event = useMemo(() => events.find(e => e.id === eventId), [events, eventId]);
@@ -37,8 +80,42 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
     if (rsvpChoice === null) {
       setComment('');
       setName('');
+      setSubmitted(false);
     }
   }, [rsvpChoice]);
+
+  const heroImages = useMemo(() => (event?.heroImages ?? []).filter(Boolean), [event]);
+
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [eventId, heroImages.length]);
+
+  const theme = useMemo(
+    () => ({
+      primary: event?.theme?.primary ?? DEFAULT_EVENT_THEME.primary,
+      secondary: event?.theme?.secondary ?? DEFAULT_EVENT_THEME.secondary,
+      background: event?.theme?.background ?? DEFAULT_EVENT_THEME.background,
+      text: event?.theme?.text ?? DEFAULT_EVENT_THEME.text,
+    }),
+    [event]
+  );
+
+  const backgroundStyle = useMemo<React.CSSProperties>(() => {
+    if (event?.backgroundImage) {
+      return {
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.88), rgba(255,255,255,0.9)), url(${event.backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+      };
+    }
+    return { backgroundColor: theme.background };
+  }, [event?.backgroundImage, theme.background]);
+
+  const mutedTextColor = useMemo(() => hexToRgba(theme.text, 0.78), [theme.text]);
+  const subtleTextColor = useMemo(() => hexToRgba(theme.text, 0.6), [theme.text]);
+  const dividerColor = useMemo(() => hexToRgba(theme.text, 0.15), [theme.text]);
+  const softPrimary = useMemo(() => hexToRgba(theme.primary, 0.12), [theme.primary]);
 
   const handleRsvpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +132,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
         comment,
         email: rsvpChoice === 'yes' && email ? email : undefined,
         status: rsvpChoice === 'yes' ? 'attending' : 'not-attending',
+        respondedAt: new Date().toISOString(),
       };
       addRsvp(event.id, newGuest);
       setSubmitted(true);
@@ -62,11 +140,19 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   };
 
   const handleCopyLink = async () => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || !event) {
       return;
     }
 
-    const shareUrl = window.location.href;
+    const url = new URL(window.location.href);
+    const hash = url.hash || '';
+    const [hashPath, existingQuery = ''] = hash.split('?');
+    const params = new URLSearchParams(existingQuery);
+    const shareToken = event.shareToken ?? event.id;
+    params.set('guest', shareToken);
+    url.hash = `${hashPath}?${params.toString()}`;
+    url.search = '';
+    const shareUrl = url.toString();
 
     try {
       if (navigator.clipboard?.writeText) {
@@ -106,168 +192,377 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   const attendingGuests = event.guests.filter(g => g.status === 'attending');
   const totalGuests = attendingGuests.reduce((sum, guest) => sum + 1 + guest.plusOnes, 0);
 
-  const formatDateTime = (dateString: string) => new Date(dateString).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-  const formatTime = (dateString: string) => new Date(dateString).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+  const formatDateTime = (dateString: string) =>
+    new Date(dateString).toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    });
+  const formatTime = (dateString: string) =>
+    new Date(dateString).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
 
   const formattedStartDate = formatDateTime(event.date);
   const formattedEndDate = event.endDate ? formatDateTime(event.endDate) : null;
   const sameDay = event.endDate && new Date(event.date).toDateString() === new Date(event.endDate).toDateString();
+  const showHeroControls = heroImages.length > 1;
+  const showEditButton = isAdmin;
+  const showShareButton = isAdmin || event.allowShareLink !== false;
+  const hasActionButtons = showEditButton || showShareButton;
+  const hasAddress = isLikelyAddress(event.location);
+  const directionsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
+
+  const handlePreviousSlide = () => {
+    setCurrentSlide(prev => (prev === 0 ? heroImages.length - 1 : prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setCurrentSlide(prev => (prev === heroImages.length - 1 ? 0 : prev + 1));
+  };
 
   return (
     <>
-    <style>{`
-        .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { margin-top: 1.2em; margin-bottom: 0.5em; font-weight: 600; color: #1e293b; }
+      <style>{`
+        .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { margin-top: 1.2em; margin-bottom: 0.5em; font-weight: 600; color: ${theme.text}; }
         .prose h1 { font-size: 1.875rem; }
         .prose h2 { font-size: 1.5rem; }
         .prose h3 { font-size: 1.25rem; }
-        .prose p { margin-bottom: 1em; color: #475569; }
-        .prose ul, .prose ol { margin-left: 1.5em; margin-bottom: 1em; color: #475569;}
+        .prose p { margin-bottom: 1em; color: ${mutedTextColor}; }
+        .prose ul, .prose ol { margin-left: 1.5em; margin-bottom: 1em; color: ${mutedTextColor}; }
         .prose ul { list-style-type: disc; }
         .prose ol { list-style-type: decimal; }
-        .prose a { color: #4f46e5; text-decoration: underline; }
-        .prose strong { font-weight: 600; color: #334155; }
-        .prose blockquote { border-left: 4px solid #e2e8f0; padding-left: 1em; margin-left: 0; font-style: italic; color: #64748b;}
-        .prose code { background-color: #f1f5f9; padding: 0.2em 0.4em; margin: 0; font-size: 85%; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .prose pre { background-color: #f1f5f9; padding: 1em; border-radius: 0.5em; overflow-x: auto; }
-    `}</style>
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left Column: Event Details */}
-        <div className="lg:col-span-3">
-          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200 p-8">
-            <div className="mb-6">
-                <p className="text-base font-semibold text-primary uppercase tracking-wide">You're Invited</p>
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-800 mt-2">{event.title}</h1>
-                <p className="mt-4 text-xl text-slate-600">Hosted by {event.host}</p>
-            </div>
-            
-            <div className="space-y-4 text-slate-700 border-t border-slate-200 pt-6">
-                <div className="flex items-start">
-                    <CalendarIcon className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
-                    <span className="text-lg">
+        .prose a { color: ${theme.primary}; text-decoration: underline; }
+        .prose strong { font-weight: 600; color: ${theme.text}; }
+        .prose blockquote { border-left: 4px solid ${dividerColor}; padding-left: 1em; margin-left: 0; font-style: italic; color: ${mutedTextColor}; }
+        .prose code { background-color: ${softPrimary}; padding: 0.2em 0.4em; margin: 0; font-size: 85%; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .prose pre { background-color: ${softPrimary}; padding: 1em; border-radius: 0.5em; overflow-x: auto; }
+      `}</style>
+      <div style={backgroundStyle} className="py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-3">
+              <div className={`rounded-2xl shadow-2xl shadow-slate-200 p-8 ${event.backgroundImage ? 'bg-white/85 backdrop-blur-md' : 'bg-white'}`}>
+                {heroImages.length > 0 && (
+                  <div className="mb-6">
+                    <div className="relative overflow-hidden rounded-2xl shadow-lg">
+                      <img
+                        src={heroImages[currentSlide]}
+                        alt={`Event highlight ${currentSlide + 1}`}
+                        className="w-full h-64 object-cover"
+                      />
+                      {showHeroControls && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handlePreviousSlide}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full p-2 shadow-lg focus:outline-none hover:opacity-90 transition"
+                            style={{ backgroundColor: theme.primary, color: '#fff' }}
+                            aria-label="Previous photo"
+                          >
+                            <ChevronLeftIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNextSlide}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-2 shadow-lg focus:outline-none hover:opacity-90 transition"
+                            style={{ backgroundColor: theme.primary, color: '#fff' }}
+                            aria-label="Next photo"
+                          >
+                            <ChevronRightIcon className="h-5 w-5" />
+                          </button>
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                            {heroImages.map((_, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                onClick={() => setCurrentSlide(index)}
+                                className="h-2.5 w-2.5 rounded-full transition"
+                                style={{
+                                  backgroundColor: index === currentSlide ? theme.primary : softPrimary,
+                                  border: index === currentSlide ? `1px solid ${theme.primary}` : '1px solid transparent',
+                                }}
+                                aria-label={`Show photo ${index + 1}`}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mb-6">
+                  <p className="text-base font-semibold uppercase tracking-wide" style={{ color: theme.primary }}>
+                    You're Invited
+                  </p>
+                  <h1 className="text-4xl sm:text-5xl font-extrabold" style={{ color: theme.text }}>
+                    {event.title}
+                  </h1>
+                  <p className="mt-4 text-xl" style={{ color: mutedTextColor }}>
+                    Hosted by {event.host}
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-6 border-t" style={{ borderColor: dividerColor, color: theme.text }}>
+                  <div className="flex items-start">
+                    <CalendarIcon className="h-6 w-6 mr-4 mt-1 flex-shrink-0" style={{ color: theme.primary }} />
+                    <span className="text-lg" style={{ color: mutedTextColor }}>
                       {formattedEndDate
                         ? sameDay
                           ? `${new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, ${formatTime(event.date)} - ${formatTime(event.endDate)}`
                           : `From ${formattedStartDate} to ${formattedEndDate}`
                         : formattedStartDate}
                     </span>
+                  </div>
+                  <div className="flex items-start">
+                    <LocationIcon className="h-6 w-6 mr-4 mt-1 flex-shrink-0" style={{ color: theme.primary }} />
+                    <div className="text-lg flex items-center gap-2 flex-wrap" style={{ color: mutedTextColor }}>
+                      <span>{event.location}</span>
+                      {hasAddress && (
+                        <a
+                          href={directionsLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-full p-1.5 transition hover:bg-slate-200/60"
+                          style={{ color: theme.primary }}
+                          aria-label="Open directions in Google Maps"
+                          title="Open in Google Maps"
+                        >
+                          <DirectionsIcon className="h-5 w-5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                    <LocationIcon className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
-                    <span className="text-lg">{event.location}</span>
-                </div>
-            </div>
 
-            {event.message && (
-                <div className="mt-6 border-t border-slate-200 pt-6">
+                {event.message && (
+                  <div className="mt-6 border-t pt-6" style={{ borderColor: dividerColor }}>
                     <div className="prose max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.message}</ReactMarkdown>
                     </div>
-                </div>
-            )}
-             <div className="mt-8 border-t border-slate-200 pt-6 flex flex-col sm:flex-row gap-4">
-                <Link to={`/event/${event.id}/edit`} className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300">
-                    <PencilIcon className="h-5 w-5" /> Edit Event
-                </Link>
-                <button onClick={handleCopyLink} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 font-bold py-3 px-4 rounded-lg hover:bg-slate-200 focus:outline-none focus:ring-4 focus:ring-slate-300 transition-all duration-300">
-                    {linkCopied ? <><CheckCircleIcon className="h-5 w-5 text-green-500" /> Link Copied!</> : <><ClipboardIcon className="h-5 w-5" /> Copy Shareable Link</>}
-                </button>
-             </div>
-          </div>
-        </div>
+                  </div>
+                )}
+                {hasActionButtons && (
+                  <div className="mt-8 border-t pt-6 flex flex-col sm:flex-row gap-4" style={{ borderColor: dividerColor }}>
+                    {showEditButton && (
+                      <Link
+                        to={`/event/${event.id}/edit`}
+                        className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+                        style={{ backgroundColor: theme.primary, color: '#fff' }}
+                      >
+                        <PencilIcon className="h-5 w-5" /> Edit Event
+                      </Link>
+                    )}
+                    {showShareButton && (
+                      <button
+                        onClick={handleCopyLink}
+                        className="flex-1 flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg hover:opacity-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+                        style={{ backgroundColor: softPrimary, color: theme.text }}
+                      >
+                        {linkCopied ? (
+                          <>
+                            <CheckCircleIcon className="h-5 w-5" style={{ color: theme.primary }} /> Link Copied!
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardIcon className="h-5 w-5" /> Copy Shareable Link
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
 
-        {/* Right Column: RSVP & Guests */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* RSVP Form */}
-          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200 p-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Are you coming?</h2>
-            {submitted ? (
-                <div className="text-center bg-green-50 p-6 rounded-lg">
+            <div className="lg:col-span-2 space-y-8">
+              <div className={`rounded-2xl shadow-2xl shadow-slate-200 p-8 ${event.backgroundImage ? 'bg-white/85 backdrop-blur-md' : 'bg-white'}`}>
+                <h2 className="text-2xl font-bold mb-4" style={{ color: theme.text }}>
+                  Are you coming?
+                </h2>
+                {submitted ? (
+                  <div className="text-center bg-green-50 p-6 rounded-lg">
                     <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto" />
                     <p className="mt-4 font-semibold text-green-800 text-lg">Thanks for your RSVP!</p>
                     <p className="text-green-700">We've saved your response.</p>
-                </div>
-            ) : rsvpChoice ? (
-              <form onSubmit={handleRsvpSubmit} className="space-y-4">
-                {rsvpChoice === 'yes' ? (
-                  <>
-                    <div>
-                      <label htmlFor="name" className="text-sm font-semibold text-slate-700">Your Name</label>
-                      <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
-                    </div>
-                    <div>
-                      <label htmlFor="plusOnes" className="text-sm font-semibold text-slate-700">Guests you're bringing</label>
-                      <input id="plusOnes" type="number" value={plusOnes} onChange={(e) => {
-                        const parsed = Number(e.target.value);
-                        setPlusOnes(Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
-                      }} min="0" className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
-                    </div>
-                    <div>
-                      <label htmlFor="email" className="text-sm font-semibold text-slate-700">Email (Optional)</label>
-                      <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="For event updates" className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
-                    </div>
-                    <div>
-                      <label htmlFor="comment" className="text-sm font-semibold text-slate-700">Comment (Optional)</label>
-                      <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"></textarea>
-                    </div>
-                  </>
+                  </div>
+                ) : rsvpChoice ? (
+                  <form onSubmit={handleRsvpSubmit} className="space-y-4">
+                    {rsvpChoice === 'yes' ? (
+                      <>
+                        <div>
+                          <label htmlFor="name" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Your Name
+                          </label>
+                          <input
+                            id="name"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="plusOnes" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Guests you're bringing
+                          </label>
+                          <input
+                            id="plusOnes"
+                            type="number"
+                            value={plusOnes}
+                            onChange={(e) => {
+                              const parsed = Number(e.target.value);
+                              setPlusOnes(Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
+                            }}
+                            min="0"
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="email" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Email (Optional)
+                          </label>
+                          <input
+                            id="email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="For event updates"
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="comment" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Comment (Optional)
+                          </label>
+                          <textarea
+                            id="comment"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            rows={2}
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          ></textarea>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm mb-4" style={{ color: subtleTextColor }}>
+                          Sorry you can't make it. Thanks for letting the host know!
+                        </p>
+                        <div>
+                          <label htmlFor="name" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Your Name
+                          </label>
+                          <input
+                            id="name"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="comment" className="text-sm font-semibold" style={{ color: theme.text }}>
+                            Reason (Optional)
+                          </label>
+                          <textarea
+                            id="comment"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            rows={2}
+                            placeholder="Let the host know why you can't attend."
+                            className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                          ></textarea>
+                        </div>
+                      </>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full font-bold py-3 px-4 rounded-lg hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+                      style={{ backgroundColor: theme.primary, color: '#fff' }}
+                    >
+                      Submit RSVP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRsvpChoice(null)}
+                      className="w-full text-center text-sm mt-2"
+                      style={{ color: theme.primary }}
+                    >
+                      Change response
+                    </button>
+                  </form>
                 ) : (
-                  <>
-                    <p className="text-sm text-slate-600 mb-4">Sorry you can't make it. Thanks for letting the host know!</p>
-                    <div>
-                      <label htmlFor="name" className="text-sm font-semibold text-slate-700">Your Name</label>
-                      <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
-                    </div>
-                    <div>
-                      <label htmlFor="comment" className="text-sm font-semibold text-slate-700">Reason (Optional)</label>
-                      <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Let the host know why you can't attend." className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"></textarea>
-                    </div>
-                  </>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={() => {
+                        setSubmitted(false);
+                        setRsvpChoice('yes');
+                      }}
+                      className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300"
+                    >
+                      Yes, I'm coming
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSubmitted(false);
+                        setRsvpChoice('no');
+                      }}
+                      className="w-full bg-slate-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-300 transition-all duration-300"
+                    >
+                      No, can't make it
+                    </button>
+                  </div>
                 )}
-                <button type="submit" className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300">
-                  Submit RSVP
-                </button>
-                <button type="button" onClick={() => setRsvpChoice(null)} className="w-full text-center text-sm text-slate-500 hover:text-primary mt-2">
-                  Change response
-                </button>
-              </form>
-            ) : (
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <button onClick={() => setRsvpChoice('yes')} className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300">
-                    Yes, I'm coming
-                    </button>
-                    <button onClick={() => setRsvpChoice('no')} className="w-full bg-slate-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-300 transition-all duration-300">
-                    No, can't make it
-                    </button>
-                </div>
-            )}
-          </div>
+              </div>
 
-          {/* Guest List */}
-          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200 p-8">
-            <div className="flex items-center gap-3 mb-4">
-                <UsersIcon className="h-7 w-7 text-primary" />
-                <h2 className="text-2xl font-bold text-slate-800">
+              <div className={`rounded-2xl shadow-2xl shadow-slate-200 p-8 ${event.backgroundImage ? 'bg-white/85 backdrop-blur-md' : 'bg-white'}`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <UsersIcon className="h-7 w-7" style={{ color: theme.primary }} />
+                  <h2 className="text-2xl font-bold" style={{ color: theme.text }}>
                     {totalGuests} {totalGuests === 1 ? 'Guest' : 'Guests'} Attending
-                </h2>
+                  </h2>
+                </div>
+                {event.showGuestList ? (
+                  <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                    {attendingGuests.length > 0 ? (
+                      attendingGuests.map(guest => (
+                        <li key={guest.id} className="p-3 rounded-lg" style={{ backgroundColor: softPrimary }}>
+                          <div className="font-semibold flex items-center gap-2" style={{ color: theme.text }}>
+                            <UserIcon className="h-5 w-5" style={{ color: subtleTextColor }} />
+                            {guest.name}{' '}
+                            {guest.plusOnes > 0 && (
+                              <span
+                                className="text-xs font-normal rounded-full px-2 py-0.5"
+                                style={{ backgroundColor: hexToRgba(theme.primary, 0.18), color: theme.primary }}
+                              >
+                                +{guest.plusOnes}
+                              </span>
+                            )}
+                          </div>
+                          {guest.comment && (
+                            <p className="text-sm italic mt-1 ml-7" style={{ color: subtleTextColor }}>
+                              "{guest.comment}"
+                            </p>
+                          )}
+                        </li>
+                      ))
+                    ) : (
+                      <p style={{ color: subtleTextColor }}>Be the first to RSVP!</p>
+                    )}
+                  </ul>
+                ) : (
+                  <p style={{ color: subtleTextColor }}>The host has chosen to keep the guest list private.</p>
+                )}
+              </div>
             </div>
-            {event.showGuestList ? (
-              <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                {attendingGuests.length > 0 ? attendingGuests.map(guest => (
-                  <li key={guest.id} className="p-3 bg-slate-50 rounded-lg">
-                    <div className="font-semibold text-slate-800 flex items-center gap-2">
-                        <UserIcon className="h-5 w-5 text-slate-400" />
-                        {guest.name} {guest.plusOnes > 0 && <span className="text-xs font-normal bg-primary-100 text-primary-800 rounded-full px-2 py-0.5">+{guest.plusOnes}</span>}
-                    </div>
-                    {guest.comment && <p className="text-sm text-slate-500 italic mt-1 ml-7">"{guest.comment}"</p>}
-                  </li>
-                )) : <p className="text-slate-500">Be the first to RSVP!</p>}
-              </ul>
-            ) : <p className="text-slate-500">The host has chosen to keep the guest list private.</p>}
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };

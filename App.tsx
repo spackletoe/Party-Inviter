@@ -5,9 +5,35 @@ import useLocalStorage from './hooks/useLocalStorage';
 import CreateEvent from './components/CreateEvent';
 import EditEvent from './components/EditEvent';
 import ProtectedEventView from './components/ProtectedEventView';
+import AccessGate from './components/AccessGate';
+import ProtectedAdminRoute, { setAdminAuthorized } from './components/ProtectedAdminRoute';
+import AdminDashboard from './components/AdminDashboard';
+
+const generateShareToken = () => {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  }
+  return Math.random().toString(36).substring(2, 14);
+};
 
 const App: React.FC = () => {
   const [events, setEvents] = useLocalStorage<Event[]>('party-events', []);
+  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
+
+  React.useEffect(() => {
+    if (events.length === 0) {
+      return;
+    }
+
+    const needsToken = events.some(event => !event.shareToken);
+    if (needsToken) {
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.shareToken ? event : { ...event, shareToken: generateShareToken() }
+        )
+      );
+    }
+  }, [events, setEvents]);
 
   const addEvent = (event: Event) => {
     setEvents(prevEvents => [...prevEvents, event]);
@@ -25,7 +51,16 @@ const App: React.FC = () => {
     setEvents(prevEvents =>
       prevEvents.map(event =>
         event.id === eventId
-          ? { ...event, guests: [...event.guests, guest] }
+          ? {
+              ...event,
+              guests: [
+                ...event.guests,
+                {
+                  ...guest,
+                  respondedAt: guest.respondedAt ?? new Date().toISOString(),
+                },
+              ],
+            }
           : event
       )
     );
@@ -54,9 +89,41 @@ const App: React.FC = () => {
         </header>
         <main className="flex-grow">
           <Routes>
-            <Route path="/" element={<CreateEvent events={events} addEvent={addEvent} deleteEvent={deleteEvent} />} />
+            <Route
+              path="/"
+              element={
+                <AccessGate
+                  events={events}
+                  adminPassword={adminPassword}
+                  onAdminAuthorized={setAdminAuthorized}
+                />
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminDashboard events={events} />
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <ProtectedAdminRoute>
+                  <CreateEvent events={events} addEvent={addEvent} deleteEvent={deleteEvent} />
+                </ProtectedAdminRoute>
+              }
+            />
             <Route path="/event/:eventId" element={<ProtectedEventView events={events} addRsvp={addRsvp} />} />
-            <Route path="/event/:eventId/edit" element={<EditEvent events={events} editEvent={editEvent} />} />
+            <Route
+              path="/event/:eventId/edit"
+              element={
+                <ProtectedAdminRoute>
+                  <EditEvent events={events} editEvent={editEvent} />
+                </ProtectedAdminRoute>
+              }
+            />
           </Routes>
         </main>
         <footer className="text-center py-4 text-slate-500 text-sm">
