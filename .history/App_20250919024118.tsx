@@ -46,11 +46,11 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="min-h-screen flex flex-col font-sans">
         <header className="p-4 bg-white/80 backdrop-blur-md sticky top-0 border-b border-slate-200">
-            <nav className="max-w-6xl mx-auto flex justify-center">
+          <nav className="max-w-6xl mx-auto">
             <Link to="/" className="text-2xl align-center font-bold text-primary hover:text-primary-700 transition">
-              Joe's Lame Party Invite Sender Thing
+              Joe's Lame Party Planner
             </Link>
-            </nav>
+          </nav>
         </header>
         <main className="flex-grow">
           <Routes>
