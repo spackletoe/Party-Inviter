@@ -7,6 +7,7 @@ import EditEvent from './components/EditEvent';
 import ProtectedEventView from './components/ProtectedEventView';
 import AccessGate from './components/AccessGate';
 import ProtectedAdminRoute, { setAdminAuthorized } from './components/ProtectedAdminRoute';
+import AdminDashboard from './components/AdminDashboard';
 
 const App: React.FC = () => {
   const [events, setEvents] = useLocalStorage<Event[]>('party-events', []);
@@ -65,6 +66,14 @@ const App: React.FC = () => {
                   adminPassword={adminPassword}
                   onAdminAuthorized={setAdminAuthorized}
                 />
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminDashboard events={events} />
+                </ProtectedAdminRoute>
               }
             />
             <Route

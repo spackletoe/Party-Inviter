@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import type { Event } from '../types';
+import { DEFAULT_EVENT_THEME } from '../types';
 import DateTimePicker from './DateTimePicker';
 
 interface EditEventProps {
   events: Event[];
   editEvent: (event: Event) => void;
 }
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Could not read file.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
 
 const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -21,6 +36,12 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
   const [message, setMessage] = useState('');
   const [showGuestList, setShowGuestList] = useState(true);
   const [password, setPassword] = useState('');
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_EVENT_THEME.primary);
+  const [secondaryColor, setSecondaryColor] = useState(DEFAULT_EVENT_THEME.secondary);
+  const [backgroundColor, setBackgroundColor] = useState(DEFAULT_EVENT_THEME.background);
+  const [textColor, setTextColor] = useState(DEFAULT_EVENT_THEME.text);
+  const [backgroundImage, setBackgroundImage] = useState<string | undefined>(undefined);
+  const [heroImages, setHeroImages] = useState<string[]>([]);
 
   useEffect(() => {
     if (eventToEdit) {
@@ -32,6 +53,12 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
       setMessage(eventToEdit.message);
       setShowGuestList(eventToEdit.showGuestList);
       setPassword(eventToEdit.password || '');
+      setPrimaryColor(eventToEdit.theme?.primary ?? DEFAULT_EVENT_THEME.primary);
+      setSecondaryColor(eventToEdit.theme?.secondary ?? DEFAULT_EVENT_THEME.secondary);
+      setBackgroundColor(eventToEdit.theme?.background ?? DEFAULT_EVENT_THEME.background);
+      setTextColor(eventToEdit.theme?.text ?? DEFAULT_EVENT_THEME.text);
+      setBackgroundImage(eventToEdit.backgroundImage);
+      setHeroImages(eventToEdit.heroImages ?? []);
     }
   }, [eventToEdit]);
 
@@ -59,10 +86,53 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
       message,
       showGuestList,
       password: password ? password : undefined,
+      theme: {
+        primary: primaryColor,
+        secondary: secondaryColor,
+        background: backgroundColor,
+        text: textColor,
+      },
+      backgroundImage: backgroundImage || undefined,
+      heroImages: heroImages.length > 0 ? heroImages : undefined,
     };
 
     editEvent(updatedEvent);
     navigate(`/event/${eventId}`);
+  };
+
+  const handleBackgroundChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setBackgroundImage(dataUrl);
+    } catch (error) {
+      console.error('Unable to read background image', error);
+      alert('Could not load that background image. Please try a different file.');
+    }
+  };
+
+  const handleHeroImagesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    try {
+      const dataUrls = await Promise.all(Array.from(files).map(readFileAsDataUrl));
+      setHeroImages(prev => [...prev, ...dataUrls]);
+      event.target.value = '';
+    } catch (error) {
+      console.error('Unable to read hero images', error);
+      alert('One or more images could not be loaded. Please try again.');
+    }
+  };
+
+  const handleRemoveHeroImage = (index: number) => {
+    setHeroImages(prev => prev.filter((_, idx) => idx !== index));
   };
 
   if (!eventToEdit) {
@@ -127,6 +197,130 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
             <div className="space-y-2">
               <label htmlFor="message" className="text-sm font-semibold text-slate-700">Event Description (Markdown supported)</label>
               <textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} rows={4} placeholder="e.g., Join us for a day of sun, food, and fun! You can use **Markdown** for formatting." className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"></textarea>
+            </div>
+
+            <div className="border-t border-b border-slate-200 py-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Appearance</h2>
+                <p className="text-sm text-slate-500">Refresh the visuals that appear on the public invitation page.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label htmlFor="primaryColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
+                    Primary Accent Color
+                    <span className="font-normal text-xs text-slate-500">Buttons & highlights</span>
+                  </label>
+                  <input
+                    id="primaryColor"
+                    type="color"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="secondaryColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
+                    Secondary Accent Color
+                    <span className="font-normal text-xs text-slate-500">Hover & detail moments</span>
+                  </label>
+                  <input
+                    id="secondaryColor"
+                    type="color"
+                    value={secondaryColor}
+                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="backgroundColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
+                    Background Tint
+                    <span className="font-normal text-xs text-slate-500">Visible when no image is set</span>
+                  </label>
+                  <input
+                    id="backgroundColor"
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="textColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
+                    Text Color
+                    <span className="font-normal text-xs text-slate-500">Headings & descriptions</span>
+                  </label>
+                  <input
+                    id="textColor"
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => setTextColor(e.target.value)}
+                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="backgroundImage" className="text-sm font-semibold text-slate-700 flex flex-col">
+                    Page Background (Optional)
+                    <span className="font-normal text-xs text-slate-500">A full-screen image behind your invitation</span>
+                  </label>
+                  <input
+                    id="backgroundImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBackgroundChange}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-700"
+                  />
+                  {backgroundImage && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200">
+                      <img src={backgroundImage} alt="Background preview" className="w-full h-40 object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setBackgroundImage(undefined)}
+                        className="w-full bg-slate-100 text-slate-600 text-sm font-semibold py-2 hover:bg-slate-200 transition"
+                      >
+                        Remove background
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="heroImages" className="text-sm font-semibold text-slate-700 flex flex-col">
+                    Hero Photos (Optional)
+                    <span className="font-normal text-xs text-slate-500">Add one photo for a banner or multiple for a slideshow</span>
+                  </label>
+                  <input
+                    id="heroImages"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleHeroImagesChange}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-700"
+                  />
+                  {heroImages.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {heroImages.map((image, index) => (
+                        <div key={`${image}-${index}`} className="relative rounded-xl overflow-hidden border border-slate-200">
+                          <img src={image} alt={`Hero preview ${index + 1}`} className="w-full h-32 object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveHeroImage(index)}
+                            className="absolute top-2 right-2 bg-white/90 text-slate-700 text-xs font-semibold px-2 py-1 rounded-full shadow"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="border-t border-b border-slate-200 py-6 space-y-4">

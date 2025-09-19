@@ -26,7 +26,7 @@ const AccessGate: React.FC<AccessGateProps> = ({ events, adminPassword, onAdminA
     if (trimmedPassword === adminPassword) {
       setError('');
       onAdminAuthorized();
-      navigate('/create');
+      navigate('/admin');
       return;
     }
 
