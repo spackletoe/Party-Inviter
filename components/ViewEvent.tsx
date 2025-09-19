@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Event, Guest } from '../types';
 import { CalendarIcon, LocationIcon, UserIcon, UsersIcon, ClipboardIcon, CheckCircleIcon, PencilIcon } from './icons';
-
 
 interface ViewEventProps {
   events: Event[];
@@ -20,8 +19,26 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
   const [submitted, setSubmitted] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [rsvpChoice, setRsvpChoice] = useState<'yes' | 'no' | null>(null);
+  const copyTimeoutRef = useRef<number | null>(null);
 
   const event = useMemo(() => events.find(e => e.id === eventId), [events, eventId]);
+
+  useEffect(() => () => {
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (rsvpChoice !== 'yes') {
+      setPlusOnes(0);
+      setEmail('');
+    }
+    if (rsvpChoice === null) {
+      setComment('');
+      setName('');
+    }
+  }, [rsvpChoice]);
 
   const handleRsvpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,13 +46,14 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
       alert('Please enter your name.');
       return;
     }
+
     if (event && rsvpChoice) {
       const newGuest: Guest = {
         id: Math.random().toString(36).substring(2, 10),
         name,
-        plusOnes: rsvpChoice === 'yes' ? plusOnes : 0,
+        plusOnes: rsvpChoice === 'yes' ? Math.max(0, plusOnes) : 0,
         comment,
-        email: rsvpChoice === 'yes' ? email : '',
+        email: rsvpChoice === 'yes' && email ? email : undefined,
         status: rsvpChoice === 'yes' ? 'attending' : 'not-attending',
       };
       addRsvp(event.id, newGuest);
@@ -43,10 +61,34 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
     }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+  const handleCopyLink = async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shareUrl = window.location.href;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+      setLinkCopied(true);
+    } catch (error) {
+      console.error('Failed to copy link', error);
+      window.prompt('Copy this invitation link:', shareUrl);
+      setLinkCopied(true);
+    }
+
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+
+    copyTimeoutRef.current = window.setTimeout(() => {
+      setLinkCopied(false);
+      copyTimeoutRef.current = null;
+    }, 2000);
   };
 
   if (!event) {
@@ -60,17 +102,16 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
       </div>
     );
   }
-  
+
   const attendingGuests = event.guests.filter(g => g.status === 'attending');
   const totalGuests = attendingGuests.reduce((sum, guest) => sum + 1 + guest.plusOnes, 0);
 
   const formatDateTime = (dateString: string) => new Date(dateString).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
   const formatTime = (dateString: string) => new Date(dateString).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
-  
+
   const formattedStartDate = formatDateTime(event.date);
   const formattedEndDate = event.endDate ? formatDateTime(event.endDate) : null;
   const sameDay = event.endDate && new Date(event.date).toDateString() === new Date(event.endDate).toDateString();
-
 
   return (
     <>
@@ -156,7 +197,10 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
                     </div>
                     <div>
                       <label htmlFor="plusOnes" className="text-sm font-semibold text-slate-700">Guests you're bringing</label>
-                      <input id="plusOnes" type="number" value={plusOnes} onChange={(e) => setPlusOnes(parseInt(e.target.value, 10))} min="0" className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
+                      <input id="plusOnes" type="number" value={plusOnes} onChange={(e) => {
+                        const parsed = Number(e.target.value);
+                        setPlusOnes(Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
+                      }} min="0" className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
                     </div>
                     <div>
                       <label htmlFor="email" className="text-sm font-semibold text-slate-700">Email (Optional)</label>
@@ -167,7 +211,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ events, addRsvp }) => {
                       <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"></textarea>
                     </div>
                   </>
-                ) : ( // rsvpChoice === 'no'
+                ) : (
                   <>
                     <p className="text-sm text-slate-600 mb-4">Sorry you can't make it. Thanks for letting the host know!</p>
                     <div>
