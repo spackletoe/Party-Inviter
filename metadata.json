@@ -1,0 +1,5 @@
+{
+  "name": "Party Invite Generator",
+  "description": "A simple web application for hosts to create and share party invitations. Guests can view event details and RSVP, and the host can choose to display the guest list or just the attendee count.",
+  "requestFramePermissions": []
+}
