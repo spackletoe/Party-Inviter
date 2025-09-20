@@ -3,22 +3,32 @@ import { LockClosedIcon } from './icons';
 
 interface PasswordPromptProps {
   eventName: string;
-  correctPassword?: string;
-  onCorrectPassword: () => void;
+  onSubmit: (password: string) => Promise<void>;
 }
 
-const PasswordPrompt: React.FC<PasswordPromptProps> = ({ eventName, correctPassword, onCorrectPassword }) => {
+const PasswordPrompt: React.FC<PasswordPromptProps> = ({ eventName, onSubmit }) => {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (input === correctPassword) {
-      setError('');
-      onCorrectPassword();
-    } else {
-      setError('Incorrect password. Please try again.');
+    if (!input) {
+      setError('Please enter a password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      await onSubmit(input);
+    } catch (err) {
+      console.error('Incorrect password provided:', err);
+      setError(err instanceof Error ? err.message : 'Incorrect password. Please try again.');
       setInput('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -32,21 +42,21 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({ eventName, correctPassw
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="space-y-2">
             <label htmlFor="password" className="sr-only">Password</label>
-            <input 
-              id="password" 
-              type="password" 
+            <input
+              id="password"
+              type="password"
               value={input} 
               onChange={(e) => setInput(e.target.value)} 
-              placeholder="Enter password" 
-              required 
+              placeholder="Enter password"
+              required
               autoFocus
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" 
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
               aria-describedby="password-error"
             />
           </div>
           {error && <p id="password-error" className="text-sm text-red-600">{error}</p>}
           <button type="submit" className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300">
-            Unlock Invitation
+            {isSubmitting ? 'Unlocking…' : 'Unlock Invitation'}
           </button>
         </form>
       </div>

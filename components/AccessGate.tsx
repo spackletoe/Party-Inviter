@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Event } from '../types';
 import { LockClosedIcon } from './icons';
+import type { AccessResult } from '../lib/api';
+import { storeGuestToken } from '../lib/session';
 
 interface AccessGateProps {
-  events: Event[];
-  adminPassword: string;
-  onAdminAuthorized: () => void;
+  submitAccessPassword: (password: string) => Promise<AccessResult>;
+  onAdminAuthorized: (token: string) => void;
 }
 
-const AccessGate: React.FC<AccessGateProps> = ({ events, adminPassword, onAdminAuthorized }) => {
+const AccessGate: React.FC<AccessGateProps> = ({ submitAccessPassword, onAdminAuthorized }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     const trimmedPassword = password.trim();
@@ -23,29 +24,32 @@ const AccessGate: React.FC<AccessGateProps> = ({ events, adminPassword, onAdminA
       return;
     }
 
-    if (trimmedPassword === adminPassword) {
-      setError('');
-      onAdminAuthorized();
-      navigate('/admin');
-      return;
-    }
+    setIsSubmitting(true);
+    setError('');
 
-    const matchingEvent = events.find(evt => evt.password && evt.password === trimmedPassword);
-    if (matchingEvent) {
-      setError('');
-      try {
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem(`event-auth-${matchingEvent.id}`, 'true');
-        }
-      } catch (storageError) {
-        console.error('Unable to persist event session state:', storageError);
+    try {
+      const result = await submitAccessPassword(trimmedPassword);
+
+      if (result.type === 'admin') {
+        onAdminAuthorized(result.token);
+        navigate('/admin');
+        return;
       }
-      navigate(`/event/${matchingEvent.id}`);
-      return;
-    }
 
-    setError('No event or admin area matched that password. Please try again.');
-    setPassword('');
+      if (result.guestToken) {
+        storeGuestToken(result.eventId, result.guestToken);
+      }
+
+      const params = new URLSearchParams();
+      params.set('guest', result.shareToken);
+      navigate(`/event/${result.eventId}?${params.toString()}`);
+    } catch (err) {
+      console.error('Unable to authorize password:', err);
+      setError(err instanceof Error ? err.message : 'That password did not match anything we know about.');
+      setPassword('');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -75,9 +79,10 @@ const AccessGate: React.FC<AccessGateProps> = ({ events, adminPassword, onAdminA
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300"
+            disabled={isSubmitting}
+            className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Continue
+            {isSubmitting ? 'Checking…' : 'Continue'}
           </button>
         </form>
       </div>
