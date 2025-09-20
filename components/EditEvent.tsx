@@ -3,10 +3,11 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import type { Event } from '../types';
 import { DEFAULT_EVENT_THEME } from '../types';
 import DateTimePicker from './DateTimePicker';
+import type { EventPayload } from '../lib/api';
 
 interface EditEventProps {
   events: Event[];
-  editEvent: (event: Event) => void;
+  onSave: (eventId: string, payload: EventPayload) => Promise<Event>;
 }
 
 const readFileAsDataUrl = (file: File) =>
@@ -23,7 +24,7 @@ const readFileAsDataUrl = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
+const EditEvent: React.FC<EditEventProps> = ({ events, onSave }) => {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const eventToEdit = events.find(e => e.id === eventId);
@@ -35,14 +36,17 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
   const [location, setLocation] = useState('');
   const [message, setMessage] = useState('');
   const [showGuestList, setShowGuestList] = useState(true);
-  const [password, setPassword] = useState('');
   const [allowShareLink, setAllowShareLink] = useState(true);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordProtected, setPasswordProtected] = useState(false);
+  const [removePassword, setRemovePassword] = useState(false);
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_EVENT_THEME.primary);
   const [secondaryColor, setSecondaryColor] = useState(DEFAULT_EVENT_THEME.secondary);
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_EVENT_THEME.background);
   const [textColor, setTextColor] = useState(DEFAULT_EVENT_THEME.text);
   const [backgroundImage, setBackgroundImage] = useState<string | undefined>(undefined);
   const [heroImages, setHeroImages] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (eventToEdit) {
@@ -53,14 +57,16 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
       setLocation(eventToEdit.location);
       setMessage(eventToEdit.message);
       setShowGuestList(eventToEdit.showGuestList);
-      setPassword(eventToEdit.password || '');
       setAllowShareLink(eventToEdit.allowShareLink ?? true);
+      setPasswordProtected(eventToEdit.passwordProtected);
       setPrimaryColor(eventToEdit.theme?.primary ?? DEFAULT_EVENT_THEME.primary);
       setSecondaryColor(eventToEdit.theme?.secondary ?? DEFAULT_EVENT_THEME.secondary);
       setBackgroundColor(eventToEdit.theme?.background ?? DEFAULT_EVENT_THEME.background);
       setTextColor(eventToEdit.theme?.text ?? DEFAULT_EVENT_THEME.text);
       setBackgroundImage(eventToEdit.backgroundImage);
       setHeroImages(eventToEdit.heroImages ?? []);
+      setRemovePassword(false);
+      setPasswordInput('');
     }
   }, [eventToEdit]);
 
@@ -71,36 +77,44 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !host || !date || !location || !eventToEdit) {
       alert('Please fill out all required fields.');
       return;
     }
 
-    const updatedEvent: Event = {
-      ...eventToEdit,
+    const payload: EventPayload = {
       title,
       host,
       date: date.toISOString(),
-      endDate: endDate ? endDate.toISOString() : undefined,
+      endDate: endDate ? endDate.toISOString() : null,
       location,
       message,
       showGuestList,
-      password: password ? password : undefined,
       allowShareLink,
+      password: passwordInput ? passwordInput : undefined,
+      removePassword,
       theme: {
         primary: primaryColor,
         secondary: secondaryColor,
         background: backgroundColor,
         text: textColor,
       },
-      backgroundImage: backgroundImage || undefined,
+      backgroundImage: backgroundImage || null,
       heroImages: heroImages.length > 0 ? heroImages : undefined,
     };
 
-    editEvent(updatedEvent);
-    navigate(`/event/${eventId}`);
+    try {
+      setIsSaving(true);
+      const updatedEvent = await onSave(eventToEdit.id, payload);
+      navigate(`/event/${updatedEvent.id}`);
+    } catch (error) {
+      console.error('Unable to save event', error);
+      alert('Could not update the event. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleBackgroundChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,7 +219,7 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
             <div className="border-t border-b border-slate-200 py-6 space-y-6">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Appearance</h2>
-                <p className="text-sm text-slate-500">Refresh the visuals that appear on the public invitation page.</p>
+                <p className="text-sm text-slate-500">Customize the backdrop and colors guests will see on the invitation.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -219,104 +233,72 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
                     type="color"
                     value={primaryColor}
                     onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                    className="w-full h-12 rounded-lg border border-slate-200"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label htmlFor="secondaryColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
-                    Secondary Accent Color
-                    <span className="font-normal text-xs text-slate-500">Hover & detail moments</span>
+                    Secondary Color
+                    <span className="font-normal text-xs text-slate-500">Badges & accents</span>
                   </label>
                   <input
                     id="secondaryColor"
                     type="color"
                     value={secondaryColor}
                     onChange={(e) => setSecondaryColor(e.target.value)}
-                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                    className="w-full h-12 rounded-lg border border-slate-200"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label htmlFor="backgroundColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
-                    Background Tint
-                    <span className="font-normal text-xs text-slate-500">Visible when no image is set</span>
+                    Background Color
+                    <span className="font-normal text-xs text-slate-500">Fallback background</span>
                   </label>
                   <input
                     id="backgroundColor"
                     type="color"
                     value={backgroundColor}
                     onChange={(e) => setBackgroundColor(e.target.value)}
-                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                    className="w-full h-12 rounded-lg border border-slate-200"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label htmlFor="textColor" className="text-sm font-semibold text-slate-700 flex justify-between items-center">
                     Text Color
-                    <span className="font-normal text-xs text-slate-500">Headings & descriptions</span>
+                    <span className="font-normal text-xs text-slate-500">Headings & paragraphs</span>
                   </label>
                   <input
                     id="textColor"
                     type="color"
                     value={textColor}
                     onChange={(e) => setTextColor(e.target.value)}
-                    className="h-12 w-full rounded-lg border border-slate-300 cursor-pointer"
+                    className="w-full h-12 rounded-lg border border-slate-200"
                   />
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="backgroundImage" className="text-sm font-semibold text-slate-700 flex flex-col">
-                    Page Background (Optional)
-                    <span className="font-normal text-xs text-slate-500">A full-screen image behind your invitation</span>
-                  </label>
-                  <input
-                    id="backgroundImage"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleBackgroundChange}
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-700"
-                  />
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Background Image</label>
+                  <input type="file" accept="image/*" onChange={handleBackgroundChange} className="w-full text-sm text-slate-500" />
                   {backgroundImage && (
-                    <div className="rounded-xl overflow-hidden border border-slate-200">
-                      <img src={backgroundImage} alt="Background preview" className="w-full h-40 object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setBackgroundImage(undefined)}
-                        className="w-full bg-slate-100 text-slate-600 text-sm font-semibold py-2 hover:bg-slate-200 transition"
-                      >
-                        Remove background
-                      </button>
-                    </div>
+                    <img src={backgroundImage} alt="Event background" className="mt-3 h-32 w-full object-cover rounded-xl border border-slate-200" />
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="heroImages" className="text-sm font-semibold text-slate-700 flex flex-col">
-                    Hero Photos (Optional)
-                    <span className="font-normal text-xs text-slate-500">Add one photo for a banner or multiple for a slideshow</span>
-                  </label>
-                  <input
-                    id="heroImages"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleHeroImagesChange}
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-700"
-                  />
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Hero Images (optional)</label>
+                  <input type="file" accept="image/*" multiple onChange={handleHeroImagesChange} className="w-full text-sm text-slate-500" />
                   {heroImages.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="mt-3 flex flex-wrap gap-3">
                       {heroImages.map((image, index) => (
-                        <div key={`${image}-${index}`} className="relative rounded-xl overflow-hidden border border-slate-200">
-                          <img src={image} alt={`Hero preview ${index + 1}`} className="w-full h-32 object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveHeroImage(index)}
-                            className="absolute top-2 right-2 bg-white/90 text-slate-700 text-xs font-semibold px-2 py-1 rounded-full shadow"
-                          >
-                            Remove
+                        <div key={index} className="relative h-20 w-32">
+                          <img src={image} alt={`Hero ${index + 1}`} className="h-full w-full object-cover rounded-lg border border-slate-200" />
+                          <button type="button" onClick={() => handleRemoveHeroImage(index)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 text-xs font-bold">
+                            ×
                           </button>
                         </div>
                       ))}
@@ -326,55 +308,57 @@ const EditEvent: React.FC<EditEventProps> = ({ events, editEvent }) => {
               </div>
             </div>
 
-            <div className="border-t border-b border-slate-200 py-6 space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-semibold text-slate-700 flex flex-col">
-                  Event Password (Optional)
-                  <span className="font-normal text-xs text-slate-500">Make your invitation private.</span>
-                </label>
-                <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter a password" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition" />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Show guest list to attendees?</label>
+                <input type="checkbox" checked={showGuestList} onChange={(e) => setShowGuestList(e.target.checked)} className="h-5 w-5 text-primary" />
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="showGuestList" className="text-sm font-semibold text-slate-700 flex flex-col">
-                    Show Guest List
-                    <span className="font-normal text-xs text-slate-500">If unchecked, only the number of guests will be shown.</span>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Event password</label>
+                {passwordProtected && !removePassword ? (
+                  <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                    A password is currently required to view this invitation. Enter a new password below to change it, or select
+                    “Remove password” to make the invite public.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500">Set a password if you want to require it for access.</p>
+                )}
+                <input
+                  type="text"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder={passwordProtected && !removePassword ? 'Enter a new password or leave blank to keep current' : 'Leave blank for no password'}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                />
+                {passwordProtected && (
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={removePassword}
+                      onChange={(e) => setRemovePassword(e.target.checked)}
+                    />
+                    Remove password protection
                   </label>
-                  <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                    <input type="checkbox" id="showGuestList" checked={showGuestList} onChange={(e) => setShowGuestList(e.target.checked)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                    <label htmlFor="showGuestList" className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="allowShareLink" className="text-sm font-semibold text-slate-700 flex flex-col">
-                    Allow Shareable Link Button
-                    <span className="font-normal text-xs text-slate-500">Let guests copy a link that bypasses the password gate.</span>
-                  </label>
-                  <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                    <input type="checkbox" id="allowShareLink" checked={allowShareLink} onChange={(e) => setAllowShareLink(e.target.checked)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                    <label htmlFor="allowShareLink" className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
-                  </div>
-                </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Allow shareable link?</label>
+                <input type="checkbox" checked={allowShareLink} onChange={(e) => setAllowShareLink(e.target.checked)} className="h-5 w-5 text-primary" />
               </div>
             </div>
 
-            <button type="submit" className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300 transform hover:scale-105">
-              Save Changes
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSaving ? 'Saving…' : 'Save Changes'}
             </button>
           </form>
         </div>
       </div>
-
-      <style>{`
-        .toggle-checkbox:checked {
-            right: 0;
-            border-color: #4f46e5; /* primary color */
-        }
-        .toggle-checkbox:checked + .toggle-label {
-            background-color: #4f46e5; /* primary color */
-        }
-      `}</style>
     </div>
   );
 };

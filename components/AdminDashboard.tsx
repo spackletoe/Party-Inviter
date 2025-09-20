@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAdminContext } from '../contexts/AdminContext';
 import type { Event } from '../types';
 import {
   CalendarIcon,
@@ -13,7 +14,7 @@ import {
 } from './icons';
 
 interface AdminDashboardProps {
-  events: Event[];
+  onLogout?: () => void;
 }
 
 const formatDateRange = (event: Event) => {
@@ -41,7 +42,9 @@ const formatDateRange = (event: Event) => {
   })}`;
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
+  const { events } = useAdminContext();
+
   const { upcomingEvents, pastEvents } = useMemo(() => {
     const now = new Date();
     const upcoming: Event[] = [];
@@ -70,7 +73,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
           eventTitle: event.title,
           guest,
           respondedAt: guest.respondedAt ? new Date(guest.respondedAt).getTime() : 0,
-        }))
+        })),
       )
       .sort((a, b) => b.respondedAt - a.respondedAt)
       .slice(0, 6);
@@ -93,7 +96,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
                 <h3 className="text-xl font-semibold text-slate-800 leading-tight">{event.title}</h3>
                 <p className="text-sm text-slate-500">Hosted by {event.host}</p>
               </div>
-              {event.password && (
+              {event.passwordProtected && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-3 py-1 text-xs font-semibold">
                   <LockClosedIcon className="h-4 w-4" /> Private
                 </span>
@@ -138,12 +141,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
               Manage invitations, review upcoming celebrations, and revisit past events all from one place.
             </p>
           </div>
-          <Link
-            to="/create"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-white font-semibold py-3 px-5 hover:bg-primary-700 transition"
-          >
-            <PlusIcon className="h-5 w-5" /> Create a New Event
-          </Link>
+          <div className="flex gap-3">
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 text-slate-700 font-semibold py-3 px-5 hover:bg-slate-200 transition"
+              >
+                Sign out
+              </button>
+            )}
+            <Link
+              to="/create"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-white font-semibold py-3 px-5 hover:bg-primary-700 transition"
+            >
+              <PlusIcon className="h-5 w-5" /> Create a New Event
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -198,48 +212,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events }) => {
           </ul>
         ) : (
           <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
-            <p>No RSVPs yet. Once guests respond you'll see them here.</p>
+            <p>No RSVPs yet. Share your invitations to start collecting responses.</p>
           </div>
         )}
       </section>
 
-      <section>
-        <header className="flex items-center justify-between gap-4 mb-6">
+      <section className="space-y-8">
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Upcoming Events</h2>
-            <p className="text-sm text-slate-500">Stay ahead of the celebrations headed your way.</p>
+            <h2 className="text-2xl font-bold text-slate-800">Upcoming events</h2>
+            <p className="text-sm text-slate-500">Keep tabs on what’s coming next.</p>
           </div>
-          <span className="text-sm text-slate-500">{upcomingEvents.length} upcoming</span>
+          <span className="text-sm text-slate-500">{upcomingEvents.length} scheduled</span>
         </header>
-        {upcomingEvents.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {upcomingEvents.map(event => renderEventCard(event))}
+        {upcomingEvents.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
+            <p>You don’t have any upcoming events yet. Start by creating one!</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
-            <p>No upcoming events yet. Start planning your next gathering!</p>
-            <Link to="/create" className="inline-flex items-center gap-2 text-primary font-semibold mt-4">
-              <PlusIcon className="h-4 w-4" /> Create an event
-            </Link>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {upcomingEvents.map(renderEventCard)}
           </div>
         )}
       </section>
 
-      <section>
-        <header className="flex items-center justify-between gap-4 mb-6">
+      <section className="space-y-8">
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Past Events</h2>
-            <p className="text-sm text-slate-500">Look back at the memories you've already made.</p>
+            <h2 className="text-2xl font-bold text-slate-800">Past events</h2>
+            <p className="text-sm text-slate-500">Look back on memories from previous gatherings.</p>
           </div>
           <span className="text-sm text-slate-500">{pastEvents.length} archived</span>
         </header>
-        {pastEvents.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {pastEvents.map(event => renderEventCard(event))}
+        {pastEvents.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
+            <p>No past events yet. Once your events wrap up, they’ll appear here.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-8 text-center text-slate-500">
-            <p>No past events yet. Share some invitations and see them appear here.</p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {pastEvents.map(renderEventCard)}
           </div>
         )}
       </section>

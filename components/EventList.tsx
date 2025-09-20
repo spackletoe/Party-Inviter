@@ -5,11 +5,12 @@ import { CalendarIcon, UsersIcon, PencilIcon, ClipboardIcon, CheckCircleIcon, Lo
 
 interface EventListProps {
   events: Event[];
-  onDelete: (eventId: string) => void;
+  onDelete: (eventId: string) => Promise<void> | void;
 }
 
 const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
   const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const resetCopyRef = useRef<number | null>(null);
 
   const sortedEvents = useMemo(() => [...events].reverse(), [events]);
@@ -32,15 +33,19 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
       return `${start.toLocaleDateString('en-US', { dateStyle: 'medium' })}, ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }
 
-    return `${start.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} -> ${end.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`;
+    return `${start.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} -> ${end.toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })}`;
   };
 
-  const handleCopyLink = async (eventId: string) => {
+  const handleCopyLink = async (event: Event) => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    const shareUrl = `${window.location.origin}/#/event/${eventId}`;
+    const shareToken = event.shareToken;
+    const shareUrl = `${window.location.origin}/#/event/${event.id}?guest=${encodeURIComponent(shareToken)}`;
 
     try {
       if (navigator.clipboard?.writeText) {
@@ -48,11 +53,11 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
       } else {
         throw new Error('Clipboard API not available');
       }
-      setCopiedEventId(eventId);
+      setCopiedEventId(event.id);
     } catch (error) {
       console.error('Failed to copy link', error);
       window.prompt('Copy this invitation link:', shareUrl);
-      setCopiedEventId(eventId);
+      setCopiedEventId(event.id);
     }
 
     if (resetCopyRef.current) {
@@ -65,14 +70,20 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
     }, 2000);
   };
 
-  const handleDelete = (eventId: string) => {
+  const handleDelete = async (eventId: string) => {
     if (typeof window !== 'undefined') {
       const confirmed = window.confirm('Delete this event? Guests will lose the invitation link.');
       if (!confirmed) {
         return;
       }
     }
-    onDelete(eventId);
+
+    try {
+      setIsDeleting(eventId);
+      await onDelete(eventId);
+    } finally {
+      setIsDeleting(null);
+    }
   };
 
   const totalEventsLabel = `${events.length} invitation${events.length === 1 ? '' : 's'}`;
@@ -93,6 +104,7 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
           const totalGuests = attendingGuests.reduce((sum, guest) => sum + 1 + guest.plusOnes, 0);
           const viewerUrl = `/event/${event.id}`;
           const copied = copiedEventId === event.id;
+          const deleting = isDeleting === event.id;
 
           return (
             <article key={event.id} className="bg-white rounded-2xl shadow-lg shadow-slate-200 p-6 flex flex-col justify-between">
@@ -102,7 +114,7 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
                     <h3 className="text-xl font-semibold text-slate-800 leading-tight">{event.title}</h3>
                     <p className="text-sm text-slate-500">Hosted by {event.host}</p>
                   </div>
-                  {event.password && (
+                  {event.passwordProtected && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-3 py-1 text-xs font-semibold">
                       <LockClosedIcon className="h-4 w-4" /> Private
                     </span>
@@ -130,7 +142,11 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
                 <Link to={`${viewerUrl}/edit`} className="flex items-center justify-center gap-2 rounded-lg bg-primary text-white font-semibold py-2 hover:bg-primary-700 transition">
                   <PencilIcon className="h-4 w-4" /> Edit
                 </Link>
-                <button type="button" onClick={() => handleCopyLink(event.id)} className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 text-slate-700 font-semibold py-2 hover:bg-slate-200 transition">
+                <button
+                  type="button"
+                  onClick={() => handleCopyLink(event)}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 text-slate-700 font-semibold py-2 hover:bg-slate-200 transition"
+                >
                   {copied ? (
                     <>
                       <CheckCircleIcon className="h-4 w-4 text-green-500" /> Copied!
@@ -141,8 +157,13 @@ const EventList: React.FC<EventListProps> = ({ events, onDelete }) => {
                     </>
                   )}
                 </button>
-                <button type="button" onClick={() => handleDelete(event.id)} className="flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 font-semibold py-2 hover:bg-red-100 transition">
-                  <TrashIcon className="h-4 w-4" /> Delete
+                <button
+                  type="button"
+                  onClick={() => handleDelete(event.id)}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 font-semibold py-2 hover:bg-red-100 transition disabled:opacity-60"
+                  disabled={deleting}
+                >
+                  <TrashIcon className="h-4 w-4" /> {deleting ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </article>

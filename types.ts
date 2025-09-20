@@ -6,6 +6,7 @@ export interface Guest {
   email?: string;
   status: 'attending' | 'not-attending';
   respondedAt?: string;
+  manageToken?: string;
 }
 
 export interface EventTheme {
@@ -32,10 +33,10 @@ export interface Event {
   message: string;
   showGuestList: boolean;
   guests: Guest[];
-  password?: string;
+  passwordProtected: boolean;
   theme?: EventTheme;
   backgroundImage?: string;
   heroImages?: string[];
-  allowShareLink?: boolean;
-  shareToken?: string;
+  allowShareLink: boolean;
+  shareToken: string;
 }
