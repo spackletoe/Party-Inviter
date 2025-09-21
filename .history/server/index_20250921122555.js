@@ -451,8 +451,6 @@ app.post('/api/public/events/:shareToken/rsvps', async (req, res) => {
         text: guestText,
         html: guestHtml,
       });
-    }
-
     res.json({
       event,
       guest,

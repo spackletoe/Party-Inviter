@@ -78,27 +78,11 @@ export const sendNotificationEmail = async ({ subject, text, html }) => {
 
   try {
     if (mailgunConfigured()) {
-      await sendViaMailgun({ to: MAIL_TO, subject, text, html });
+      await sendViaMailgun({ subject, text, html });
     } else {
-      await sendViaSmtp({ to: MAIL_TO, subject, text, html });
+      await sendViaSmtp({ subject, text, html });
     }
   } catch (error) {
     console.error('Unable to send notification email:', error);
-  }
-};
-
-export const sendGuestEmail = async ({ to, subject, text, html }) => {
-  if (!to) {
-    return;
-  }
-
-  try {
-    if (mailgunConfigured()) {
-      await sendViaMailgun({ to, subject, text, html });
-    } else {
-      await sendViaSmtp({ to, subject, text, html });
-    }
-  } catch (error) {
-    console.error('Unable to send guest email:', error);
   }
 };

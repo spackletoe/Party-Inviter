@@ -56,7 +56,7 @@ const getSmtpTransport = () => {
   return smtpTransport;
 };
 
-const sendViaSmtp = async ({ to, subject, text, html }) => {
+const sendViaSmtp = async ({ subject, text, html }) => {
   const transport = getSmtpTransport();
   if (!transport) {
     throw new Error('SMTP transport is not configured.');
@@ -64,7 +64,7 @@ const sendViaSmtp = async ({ to, subject, text, html }) => {
 
   await transport.sendMail({
     from: process.env.MAIL_FROM || 'party-inviter@localhost',
-    to,
+    to: MAIL_TO,
     subject,
     text,
     html,
@@ -78,27 +78,11 @@ export const sendNotificationEmail = async ({ subject, text, html }) => {
 
   try {
     if (mailgunConfigured()) {
-      await sendViaMailgun({ to: MAIL_TO, subject, text, html });
+      await sendViaMailgun({ subject, text, html });
     } else {
-      await sendViaSmtp({ to: MAIL_TO, subject, text, html });
+      await sendViaSmtp({ subject, text, html });
     }
   } catch (error) {
     console.error('Unable to send notification email:', error);
-  }
-};
-
-export const sendGuestEmail = async ({ to, subject, text, html }) => {
-  if (!to) {
-    return;
-  }
-
-  try {
-    if (mailgunConfigured()) {
-      await sendViaMailgun({ to, subject, text, html });
-    } else {
-      await sendViaSmtp({ to, subject, text, html });
-    }
-  } catch (error) {
-    console.error('Unable to send guest email:', error);
   }
 };

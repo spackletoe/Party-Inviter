@@ -453,19 +453,6 @@ app.post('/api/public/events/:shareToken/rsvps', async (req, res) => {
       });
     }
 
-    res.json({
-      event,
-      guest,
-      guestToken: eventRow.password_hash ? signGuestToken(eventRow.id) : undefined,
-      manageToken: guest.manageToken,
-    });
-  } catch (error) {
-    await connection.rollback();
-    console.error('Unable to process RSVP:', error);
-    res.status(500).json({ message: 'Unable to submit RSVP.' });
-  } finally {
-    connection.release();
-  }
 });
 
 // Admin: Get all guests for an event

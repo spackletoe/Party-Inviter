@@ -9,7 +9,6 @@ import { getEventGuests, removeGuest, addGuest, sendGuestInvite } from '../lib/a
 interface EditEventProps {
   events: Event[];
   onSave: (eventId: string, payload: EventPayload) => Promise<Event>;
-  adminToken: string;
 }
 
 const readFileAsDataUrl = (file: File) =>
@@ -26,7 +25,7 @@ const readFileAsDataUrl = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-const EditEvent: React.FC<EditEventProps> = ({ events, onSave, adminToken }) => {
+const EditEvent: React.FC<EditEventProps> = ({ events, onSave }) => {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const eventToEdit = events.find(e => e.id === eventId);
@@ -49,15 +48,6 @@ const EditEvent: React.FC<EditEventProps> = ({ events, onSave, adminToken }) => 
   const [backgroundImage, setBackgroundImage] = useState<string | undefined>(undefined);
   const [heroImages, setHeroImages] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Guest management state
-  const [guests, setGuests] = useState<any[]>([]);
-  const [isLoadingGuests, setIsLoadingGuests] = useState(false);
-  const [showGuestManagement, setShowGuestManagement] = useState(false);
-  const [newGuestName, setNewGuestName] = useState('');
-  const [newGuestEmail, setNewGuestEmail] = useState('');
-  const [newGuestPlusOnes, setNewGuestPlusOnes] = useState(0);
-  const [newGuestComment, setNewGuestComment] = useState('');
 
   useEffect(() => {
     if (eventToEdit) {
@@ -162,76 +152,6 @@ const EditEvent: React.FC<EditEventProps> = ({ events, onSave, adminToken }) => 
   const handleRemoveHeroImage = (index: number) => {
     setHeroImages(prev => prev.filter((_, idx) => idx !== index));
   };
-
-  // Guest management functions
-  const loadGuests = async () => {
-    if (!eventToEdit || !adminToken) return;
-    
-    setIsLoadingGuests(true);
-    try {
-      const guestList = await getEventGuests(adminToken, eventToEdit.id);
-      setGuests(guestList);
-    } catch (error) {
-      console.error('Failed to load guests:', error);
-    } finally {
-      setIsLoadingGuests(false);
-    }
-  };
-
-  const handleRemoveGuest = async (guestId: string) => {
-    if (!eventToEdit || !adminToken) return;
-    
-    if (!confirm('Are you sure you want to remove this guest?')) return;
-    
-    try {
-      await removeGuest(adminToken, eventToEdit.id, guestId);
-      setGuests(prev => prev.filter(g => g.id !== guestId));
-    } catch (error) {
-      console.error('Failed to remove guest:', error);
-      alert('Failed to remove guest');
-    }
-  };
-
-  const handleAddGuest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!eventToEdit || !adminToken || !newGuestName.trim()) return;
-    
-    try {
-      const newGuest = await addGuest(adminToken, eventToEdit.id, {
-        name: newGuestName.trim(),
-        email: newGuestEmail.trim() || undefined,
-        plusOnes: newGuestPlusOnes,
-        comment: newGuestComment.trim() || undefined,
-      });
-      
-      setGuests(prev => [...prev, newGuest]);
-      setNewGuestName('');
-      setNewGuestEmail('');
-      setNewGuestPlusOnes(0);
-      setNewGuestComment('');
-    } catch (error) {
-      console.error('Failed to add guest:', error);
-      alert('Failed to add guest');
-    }
-  };
-
-  const handleSendInvite = async (guestId: string) => {
-    if (!eventToEdit || !adminToken) return;
-    
-    try {
-      await sendGuestInvite(adminToken, eventToEdit.id, guestId);
-      alert('Invitation sent successfully!');
-    } catch (error) {
-      console.error('Failed to send invite:', error);
-      alert('Failed to send invitation');
-    }
-  };
-
-  useEffect(() => {
-    if (showGuestManagement) {
-      loadGuests();
-    }
-  }, [showGuestManagement, eventToEdit, adminToken]);
 
   if (!eventToEdit) {
     return (
@@ -428,118 +348,6 @@ const EditEvent: React.FC<EditEventProps> = ({ events, onSave, adminToken }) => 
                 <label className="text-sm font-semibold text-slate-700">Allow shareable link?</label>
                 <input type="checkbox" checked={allowShareLink} onChange={(e) => setAllowShareLink(e.target.checked)} className="h-5 w-5 text-primary" />
               </div>
-            </div>
-
-            <div className="border-t border-slate-200 pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-800">Guest Management</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowGuestManagement(!showGuestManagement)}
-                  className="text-sm text-primary hover:text-primary-700 font-medium"
-                >
-                  {showGuestManagement ? 'Hide' : 'Show'} Guest List
-                </button>
-              </div>
-
-              {showGuestManagement && (
-                <div className="space-y-6">
-                  {/* Add new guest form */}
-                  <div className="bg-slate-50 p-4 rounded-lg">
-                    <h4 className="text-sm font-semibold text-slate-700 mb-3">Add New Guest</h4>
-                    <form onSubmit={handleAddGuest} className="space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input
-                          type="text"
-                          placeholder="Guest name"
-                          value={newGuestName}
-                          onChange={(e) => setNewGuestName(e.target.value)}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                          required
-                        />
-                        <input
-                          type="email"
-                          placeholder="Email (optional)"
-                          value={newGuestEmail}
-                          onChange={(e) => setNewGuestEmail(e.target.value)}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input
-                          type="number"
-                          placeholder="Plus ones"
-                          value={newGuestPlusOnes}
-                          onChange={(e) => setNewGuestPlusOnes(Number(e.target.value) || 0)}
-                          min={0}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Comment (optional)"
-                          value={newGuestComment}
-                          onChange={(e) => setNewGuestComment(e.target.value)}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700"
-                      >
-                        Add Guest
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Guest list */}
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                      Current Guests ({guests.length})
-                    </h4>
-                    {isLoadingGuests ? (
-                      <p className="text-sm text-slate-500">Loading guests...</p>
-                    ) : guests.length === 0 ? (
-                      <p className="text-sm text-slate-500">No guests yet.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {guests.map(guest => (
-                          <div key={guest.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm text-slate-800">{guest.name}</p>
-                              <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
-                                <span>Status: {guest.status}</span>
-                                {guest.email && <span>{guest.email}</span>}
-                                {guest.plusOnes > 0 && <span>+{guest.plusOnes}</span>}
-                              </div>
-                              {guest.comment && (
-                                <p className="text-xs text-slate-600 mt-1">"{guest.comment}"</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {guest.email && (
-                                <button
-                                  onClick={() => handleSendInvite(guest.id)}
-                                  className="text-primary hover:text-primary-700 text-xs font-medium"
-                                  title="Send invitation"
-                                >
-                                  📧
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleRemoveGuest(guest.id)}
-                                className="text-red-500 hover:text-red-700 text-xs font-medium"
-                                title="Remove guest"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             <button

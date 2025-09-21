@@ -223,7 +223,6 @@ const ProtectedEventView: React.FC<ProtectedEventViewProps> = ({ adminEvents, is
         onSubmitRsvp={handleRsvpSubmit}
         isAdmin={isAdmin}
         shareToken={shareToken}
-        manageToken={manageToken}
       />
     );
   }, [event, handlePasswordSubmit, handleRsvpSubmit, isAdmin, isLoading, loadError, requiresPassword, shareToken]);

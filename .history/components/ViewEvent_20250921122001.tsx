@@ -48,13 +48,12 @@ interface ViewEventProps {
   onSubmitRsvp: (payload: RsvpPayload) => Promise<Guest>;
   isAdmin: boolean;
   shareToken: string;
-  manageToken?: string | null;
 }
 
 const ADDRESS_PATTERN = /\b(street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|boulevard|blvd\.?|lane|ln\.?|way|trail|court|ct\.?,?|circle|cir\.?|place|pl\.?)\b/i;
 const isLikelyAddress = (location: string) => /\d/.test(location) || ADDRESS_PATTERN.test(location);
 
-const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, shareToken, manageToken }) => {
+const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, shareToken }) => {
   const [name, setName] = useState('');
   const [plusOnes, setPlusOnes] = useState(0);
   const [comment, setComment] = useState('');
@@ -89,21 +88,6 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
   useEffect(() => {
     setCurrentSlide(0);
   }, [event.id, heroImages.length]);
-
-  // Pre-fill form with existing guest data when manage token is present
-  useEffect(() => {
-    if (manageToken && event.guests) {
-      const existingGuest = event.guests.find(guest => guest.manageToken === manageToken);
-      if (existingGuest) {
-        setName(existingGuest.name);
-        setPlusOnes(existingGuest.plusOnes);
-        setComment(existingGuest.comment || '');
-        setEmail(existingGuest.email || '');
-        setRsvpChoice(existingGuest.status === 'attending' ? 'yes' : 'no');
-        setSubmitted(true);
-      }
-    }
-  }, [manageToken, event.guests]);
 
   const theme = useMemo(
     () => ({
@@ -371,15 +355,8 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
           <aside className="space-y-6">
             <div className="bg-white/95 backdrop-blur rounded-3xl shadow-xl p-6 space-y-6">
               <header>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {manageToken ? 'Update Your RSVP' : 'Your RSVP'}
-                </h3>
-                <p className="text-sm text-slate-500">
-                  {manageToken 
-                    ? 'Make changes to your response anytime.' 
-                    : 'Let the host know if they should save you a slice of cake.'
-                  }
-                </p>
+                <h3 className="text-lg font-semibold text-slate-800">Your RSVP</h3>
+                <p className="text-sm text-slate-500">Let the host know if they should save you a slice of cake.</p>
               </header>
 
               <div className="grid grid-cols-2 gap-3">

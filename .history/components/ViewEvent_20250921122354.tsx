@@ -371,15 +371,8 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
           <aside className="space-y-6">
             <div className="bg-white/95 backdrop-blur rounded-3xl shadow-xl p-6 space-y-6">
               <header>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {manageToken ? 'Update Your RSVP' : 'Your RSVP'}
-                </h3>
-                <p className="text-sm text-slate-500">
-                  {manageToken 
-                    ? 'Make changes to your response anytime.' 
-                    : 'Let the host know if they should save you a slice of cake.'
-                  }
-                </p>
+                <h3 className="text-lg font-semibold text-slate-800">Your RSVP</h3>
+                <p className="text-sm text-slate-500">Let the host know if they should save you a slice of cake.</p>
               </header>
 
               <div className="grid grid-cols-2 gap-3">

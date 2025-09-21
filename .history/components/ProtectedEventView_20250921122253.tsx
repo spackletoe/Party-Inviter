@@ -114,14 +114,6 @@ const ProtectedEventView: React.FC<ProtectedEventViewProps> = ({ adminEvents, is
     };
   }, [guestToken, isAdmin, shareToken, syncEvent]);
 
-  // Handle manage token from URL
-  useEffect(() => {
-    if (manageTokenFromQuery && eventId) {
-      storeManageToken(eventId, manageTokenFromQuery);
-      setManageTokenState(manageTokenFromQuery);
-    }
-  }, [manageTokenFromQuery, eventId]);
-
   const handlePasswordSubmit = useCallback(
     async (password: string) => {
       if (!shareToken) {
@@ -223,7 +215,6 @@ const ProtectedEventView: React.FC<ProtectedEventViewProps> = ({ adminEvents, is
         onSubmitRsvp={handleRsvpSubmit}
         isAdmin={isAdmin}
         shareToken={shareToken}
-        manageToken={manageToken}
       />
     );
   }, [event, handlePasswordSubmit, handleRsvpSubmit, isAdmin, isLoading, loadError, requiresPassword, shareToken]);
