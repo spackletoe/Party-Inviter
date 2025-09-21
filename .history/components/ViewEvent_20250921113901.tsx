@@ -1,7 +1,9 @@
+// ViewEvent.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks'; // <-- added
 import type { Event, Guest } from '../types';
 import { DEFAULT_EVENT_THEME } from '../types';
 import {
@@ -334,12 +336,11 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
           </section>
         )}
 
-        <section className="grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
           <article className="bg-white/95 backdrop-blur rounded-3xl shadow-xl p-8 space-y-6">
             <h2 className="text-2xl font-bold text-slate-800">About this celebration</h2>
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              className="prose prose-slate max-w-none event-description"
+              remarkPlugins={[remarkGfm, remarkBreaks]} // <-- added remarkBreaks here
+              className="prose prose-slate max-w-none whitespace-pre-wrap" // <-- adds pre-wrap as a defensive fallback
               components={{
                 a: props => (
                   <a {...props} className="text-primary hover:text-primary-700" target="_blank" rel="noreferrer" />

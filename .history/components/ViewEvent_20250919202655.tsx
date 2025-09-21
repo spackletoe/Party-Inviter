@@ -339,7 +339,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
             <h2 className="text-2xl font-bold text-slate-800">About this celebration</h2>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              className="prose prose-slate max-w-none event-description"
+              className="prose prose-slate max-w-none"
               components={{
                 a: props => (
                   <a {...props} className="text-primary hover:text-primary-700" target="_blank" rel="noreferrer" />
