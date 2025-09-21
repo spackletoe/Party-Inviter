@@ -11,10 +11,10 @@ import {
   UsersIcon,
   ClipboardIcon,
   CheckCircleIcon,
+  PencilIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DirectionsIcon,
-  PencilIcon,
 } from './icons';
 import type { RsvpPayload } from '../lib/api';
 

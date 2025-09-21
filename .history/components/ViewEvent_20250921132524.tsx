@@ -10,11 +10,20 @@ import {
   UserIcon,
   UsersIcon,
   ClipboardIcon,
-  CheckCircleIcon,
+  CheckCircleIcon                <button
+                  type="button"
+                  onClick={() => setRsvpChoice('no')}
+                  className={`rounded-xl border-2 py-3 font-semibold transition ${
+                    rsvpChoice === 'no'
+                      ? 'border-secondary bg-secondary/10 text-secondary'
+                      : 'border-slate-200 text-slate-600 hover:border-secondary/50'
+                  }`}
+                >
+                  Can't make it
+                </button>Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DirectionsIcon,
-  PencilIcon,
 } from './icons';
 import type { RsvpPayload } from '../lib/api';
 

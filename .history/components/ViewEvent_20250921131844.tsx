@@ -11,10 +11,10 @@ import {
   UsersIcon,
   ClipboardIcon,
   CheckCircleIcon,
+  PencilIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DirectionsIcon,
-  PencilIcon,
 } from './icons';
 import type { RsvpPayload } from '../lib/api';
 
@@ -487,10 +487,8 @@ const ViewEvent: React.FC<ViewEventProps> = ({ event, onSubmitRsvp, isAdmin, sha
               <div className="border-t border-slate-200 pt-4 text-xs text-slate-500">
                 {event.passwordProtected ? (
                   <p>This invitation is private. Keep the password and link handy to update your RSVP later.</p>
-                ) : event.allowShareLink ? (
-                  <p>Share the link below if you want friends to RSVP too.</p>
                 ) : (
-                  <p>This invitation is private. Only invited guests can access it.</p>
+                  <p>Share the link below if you want friends to RSVP too.</p>
                 )}
               </div>
             </div>
